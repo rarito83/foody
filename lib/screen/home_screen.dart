@@ -1,18 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:foody/data/source.dart';
 import 'package:foody/provider/product_provider.dart';
-import 'package:foody/common/request_state.dart';
-import 'package:foody/screen/detail_screen.dart';
+import 'package:foody/screen/widgets/product_grid.dart';
 import 'package:provider/provider.dart';
-import 'package:pull_to_refresh/pull_to_refresh.dart';
+import 'package:sliding_up_panel/sliding_up_panel.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   static const routeName = '/home';
 
-  const HomeScreen({Key? key}) : super(key: key);
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  PanelController _panelController = PanelController();
+
+  bool expand = false;
+  double marginLeft = 30;
+  double marginRight = 30;
+  double marginBottom = 20;
+
+  double blRadius = 20;
+  double brRadius = 20;
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
     return ChangeNotifierProvider(
       create: (context) => ProductProvider(apiService: ApiService()),
       child: Scaffold(
@@ -20,106 +33,120 @@ class HomeScreen extends StatelessWidget {
           title: const Text('Food Product'),
           centerTitle: true,
         ),
-        body: Consumer<ProductProvider>(
-          builder: (context, value, _) {
-            if (value.requestState == RequestState.loading) {
-              return const Center(
-                child: CircularProgressIndicator(),
-              );
-            } else if (value.requestState == RequestState.noData) {
-              return const Center(
-                child: Text('Failed get data'),
-              );
-            } else if (value.requestState == RequestState.error) {
-              return Center(
+        body: Stack(children: [
+          SlidingUpPanel(
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(20),
+              topRight: const Radius.circular(20),
+              bottomLeft: Radius.circular(blRadius),
+              bottomRight: Radius.circular(brRadius),
+            ),
+            parallaxEnabled: true,
+            margin: EdgeInsets.only(
+                left: marginLeft, right: marginRight, bottom: marginBottom),
+            maxHeight: size.height * 0.8,
+            minHeight: 60,
+            controller: _panelController,
+            onPanelSlide: (position) {
+              setState(() {
+                marginLeft = ((30 - (30 * position)).abs()).toDouble();
+                marginRight = ((30 - (30 * position)).abs()).toDouble();
+                marginBottom = ((20 - (20 * position)).abs()).toDouble();
+
+                blRadius = ((20 - (20 * position)).abs()).toDouble();
+                brRadius = ((20 - (20 * position)).abs()).toDouble();
+
+                if (position > 0.8) {
+                  expand = true;
+                }
+
+                if (expand && position < 0.8) {
+                  expand = false;
+                }
+              });
+            },
+            body: const ProductGrid(),
+            panelBuilder: (control) {
+              return buildNavigation(control);
+            },
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget buildNavigation(ScrollController control) {
+    return ListView(
+      controller: control,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              navIcon(Icons.home, 'HOME'),
+              navIcon(Icons.settings, 'ACTIVITY'),
+              navIcon(Icons.message, 'MESSAGE'),
+              navIcon(Icons.person, 'PROFILE'),
+            ],
+          ),
+        ),
+        !expand
+            ? const SizedBox.shrink()
+            : Column(
+                children: [
+                  const SizedBox(
+                    height: 20,
+                  ),
+                  expandIcon(Icons.ac_unit_rounded, 'AC Unit'),
+                  expandIcon(Icons.access_alarm_rounded, 'Alarm'),
+                  expandIcon(Icons.access_time_filled_rounded, "Time"),
+                  expandIcon(Icons.accessibility_new_rounded, "Access")
+                ],
+              )
+      ],
+    );
+  }
+
+  Widget navIcon(IconData icon, String text) {
+    return Column(
+      children: [
+        Icon(icon),
+        const SizedBox(height: 2),
+        Text(text, style: TextStyle(fontSize: 10)),
+      ],
+    );
+  }
+
+  Widget expandIcon(IconData icon, String text) {
+    return Container(
+      height: 50,
+      margin: const EdgeInsets.symmetric(
+        vertical: 20,
+        horizontal: 20,
+      ),
+      child: GridView.builder(
+          itemCount: 10,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              childAspectRatio: 2 / 2,
+              crossAxisCount: 4,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10),
+          itemBuilder: (context, index) {
+            return GridTile(
+              child: GestureDetector(
+                onTap: () {},
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
-                        "Jaringan Terputus!! Periksa Koneksi Internet Anda.."),
-                    ElevatedButton(
-                      onPressed: () {
-                        value.fetchAllProducts();
-                      },
-                      child: const Text('Refresh'),
-                    ),
+                    Icon(icon),
+                    Text(text),
                   ],
                 ),
-              );
-            } else if (value.requestState == RequestState.hasData) {
-              final productList = value.allProduct;
-              return SmartRefresher(
-                controller: value.controller,
-                onRefresh: () => value.pullRefresh(),
-                child: GridView.builder(
-                  padding: const EdgeInsets.all(10),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      childAspectRatio: 2 / 2,
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 10),
-                  itemCount: productList.length,
-                  itemBuilder: (context, index) {
-                    return Card(
-                      child: InkWell(
-                        onTap: () {
-                          Navigator.pushNamed(context, DetailScreen.routeName,
-                              arguments: productList[index]);
-                        },
-                        child: Padding(
-                          padding: EdgeInsets.all(8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              Expanded(
-                                child: Hero(
-                                  tag: productList[index].cover,
-                                  child: Container(
-                                    width: 200,
-                                    height: 120,
-                                    decoration: BoxDecoration(
-                                      image: DecorationImage(
-                                        image: NetworkImage(
-                                            productList[index].cover),
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(
-                                height: 4,
-                              ),
-                              Text(
-                                productList[index].name,
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(
-                                height: 4,
-                              ),
-                              Text(
-                                productList[index].price.toString(),
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              );
-            } else {
-              return Container();
-            }
-          },
-        ),
-      ),
+              ),
+            );
+          }),
     );
   }
 }
